@@ -373,14 +373,27 @@
                 const response = await fetch(this.config.apiEndpoint, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        'Accept': 'text/event-stream'
                     },
                     body: JSON.stringify(requestData)
                 });
 
                 if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || 'API request failed');
+                    let errorMessage = 'API request failed';
+                    try {
+                        const errorData = await response.json();
+                        errorMessage = errorData.error || errorMessage;
+                    } catch (e) {
+                        // 如果无法解析 JSON，使用默认错误消息
+                    }
+                    throw new Error(errorMessage);
+                }
+
+                // 确认响应类型
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('text/event-stream')) {
+                    console.warn('Unexpected content type:', contentType);
                 }
 
                 // 处理流式响应
@@ -397,7 +410,8 @@
 
             } catch (error) {
                 console.error('Chat error:', error);
-                aiMessageBubble.innerHTML = error.message || this.config.messages.error;
+                const errorMessage = error.message || this.config.messages.error;
+                aiMessageBubble.innerHTML = `<span style="color: #dc3545;">${errorMessage}</span>`;
             } finally {
                 this.elements.input.disabled = false;
                 this.elements.sendBtn.disabled = false;
@@ -414,36 +428,81 @@
             const decoder = new TextDecoder();
             let content = '';
             let isFirstChunk = true;
+            let buffer = '';
 
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
+            try {
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
 
-                const chunk = decoder.decode(value);
-                const lines = chunk.split('\n');
+                    // 解码并添加到缓冲区
+                    buffer += decoder.decode(value, { stream: true });
+                    
+                    // 按行分割处理
+                    const lines = buffer.split('\n');
+                    
+                    // 保留最后一行（可能不完整）
+                    buffer = lines.pop() || '';
 
-                for (const line of lines) {
-                    if (line.startsWith('data: ')) {
-                        const data = line.slice(6);
-                        if (data === '[DONE]') continue;
+                    for (const line of lines) {
+                        if (line.trim() === '') continue;
+                        
+                        if (line.startsWith('data: ')) {
+                            const data = line.slice(6).trim();
+                            
+                            // 跳过特殊标记
+                            if (data === '[DONE]') continue;
+                            if (data === '') continue;
 
+                            try {
+                                const json = JSON.parse(data);
+                                const delta = json.choices?.[0]?.delta?.content;
+                                
+                                if (delta) {
+                                    if (isFirstChunk) {
+                                        messageBubble.innerHTML = '';
+                                        isFirstChunk = false;
+                                    }
+                                    content += delta;
+                                    messageBubble.textContent = content;
+                                    this.elements.messages.scrollTop = this.elements.messages.scrollHeight;
+                                }
+                                
+                                // 检查是否结束
+                                if (json.choices?.[0]?.finish_reason) {
+                                    break;
+                                }
+                            } catch (e) {
+                                console.warn('Failed to parse SSE data:', data, e);
+                            }
+                        }
+                    }
+                }
+                
+                // 处理缓冲区中剩余的数据
+                if (buffer.trim() && buffer.startsWith('data: ')) {
+                    const data = buffer.slice(6).trim();
+                    if (data && data !== '[DONE]') {
                         try {
                             const json = JSON.parse(data);
                             const delta = json.choices?.[0]?.delta?.content;
                             if (delta) {
-                                if (isFirstChunk) {
-                                    messageBubble.innerHTML = '';
-                                    isFirstChunk = false;
-                                }
                                 content += delta;
                                 messageBubble.textContent = content;
-                                this.elements.messages.scrollTop = this.elements.messages.scrollHeight;
                             }
                         } catch (e) {
-                            // 忽略解析错误
+                            console.warn('Failed to parse final SSE data:', data, e);
                         }
                     }
                 }
+            } catch (error) {
+                console.error('Stream reading error:', error);
+                throw error;
+            }
+
+            // 如果没有收到任何内容，显示错误
+            if (!content) {
+                throw new Error('No response received from server');
             }
 
             // 保存 AI 回复到上下文
