@@ -1,5 +1,5 @@
 // live2d-chat-extension.js
-// Live2D Widget 聊天扩展 - 修正版本
+// Live2D Widget 聊天扩展
 
 (function() {
     'use strict';
@@ -230,8 +230,38 @@
                 this.inputFocused = false;
             });
 
+            // 监听输入事件，防止在输入时隐藏
+            this.elements.input.addEventListener('input', (e) => {
+                e.stopPropagation();
+                this.inputFocused = true;
+            });
+
+            // 监听所有键盘事件，防止在输入时隐藏
+            this.elements.input.addEventListener('keydown', (e) => {
+                e.stopPropagation();
+                this.inputFocused = true;
+            });
+
+            this.elements.input.addEventListener('keyup', (e) => {
+                e.stopPropagation();
+                this.inputFocused = true;
+            });
+
             // 防止聊天框内的点击事件冒泡
             this.elements.container.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+
+            // 防止聊天框内的所有键盘事件冒泡
+            this.elements.container.addEventListener('keydown', (e) => {
+                e.stopPropagation();
+            });
+
+            this.elements.container.addEventListener('keyup', (e) => {
+                e.stopPropagation();
+            });
+
+            this.elements.container.addEventListener('keypress', (e) => {
                 e.stopPropagation();
             });
 
@@ -329,6 +359,7 @@
         hide() {
             // 如果正在输入或有焦点，不要隐藏
             if (this.hasFocus() || this.isStreaming) {
+                console.log('Prevented hiding chat box due to focus or streaming');
                 return;
             }
             
@@ -432,12 +463,17 @@
                 await this.handleStreamResponse(response, aiMessageBubble);
 
                 // 检查是否需要重新验证
-                if (this.config.requireTurnstile && this.config.requireTurnstileEveryMessage) {
-                    // 每次消息都需要重新验证
+                if (this.config.requireTurnstile) {
+                    // 重置验证状态，下次发送消息时需要重新验证
                     this.turnstileToken = null;
-                    this.elements.turnstileContainer.style.display = 'flex';
-                    this.elements.inputRow.style.display = 'none';
-                    window.turnstile.reset(this.turnstileWidgetId);
+                    
+                    // 如果配置了每次消息都需要验证，立即显示验证码
+                    if (this.config.requireTurnstileEveryMessage) {
+                        this.elements.turnstileContainer.innerHTML = '';
+                        this.elements.turnstileContainer.style.display = 'flex';
+                        this.elements.inputRow.style.display = 'none';
+                        this.initTurnstile();
+                    }
                 }
 
             } catch (error) {
