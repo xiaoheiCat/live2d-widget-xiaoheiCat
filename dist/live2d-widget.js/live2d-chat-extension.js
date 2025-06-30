@@ -125,7 +125,7 @@
                     <div class="l2d-chat-messages" id="l2d-chat-messages"></div>
                     <div class="l2d-chat-input-container">
                         <div id="l2d-turnstile-container" class="l2d-turnstile-container"></div>
-                        <div class="l2d-chat-input-row">
+                        <div class="l2d-chat-input-row" id="l2d-chat-input-row" style="display: none;">
                             <input type="text" 
                                    class="l2d-chat-input" 
                                    id="l2d-chat-input" 
@@ -154,7 +154,8 @@
                 input: document.getElementById('l2d-chat-input'),
                 sendBtn: document.getElementById('l2d-chat-send'),
                 closeBtn: document.querySelector('.l2d-chat-close'),
-                turnstileContainer: document.getElementById('l2d-turnstile-container')
+                turnstileContainer: document.getElementById('l2d-turnstile-container'),
+                inputRow: document.getElementById('l2d-chat-input-row')
             };
         }
 
@@ -248,6 +249,9 @@
             // 初始化 Turnstile（如果需要且尚未初始化）
             if (this.config.requireTurnstile && this.config.turnstileSiteKey && !this.turnstileWidgetId) {
                 this.initTurnstile();
+            } else if (!this.config.requireTurnstile) {
+                // 如果不需要验证码，直接显示输入框
+                this.elements.inputRow.style.display = 'flex';
             }
         }
 
@@ -259,11 +263,19 @@
                 sitekey: this.config.turnstileSiteKey,
                 callback: (token) => {
                     this.turnstileToken = token;
+                    // 验证成功后隐藏验证码，显示输入框
+                    this.elements.turnstileContainer.style.display = 'none';
+                    this.elements.inputRow.style.display = 'flex';
+                    this.elements.input.focus();
                 },
                 'expired-callback': () => {
                     this.turnstileToken = null;
+                    // 验证过期，重新显示验证码
+                    this.elements.turnstileContainer.style.display = 'flex';
+                    this.elements.inputRow.style.display = 'none';
+                    window.turnstile.reset(this.turnstileWidgetId);
                 },
-                size: 'compact',
+                size: 'normal', // 使用正常大小而不是 compact
                 theme: this.config.theme === 'dark' ? 'dark' : 'light'
             });
         }
@@ -315,12 +327,6 @@
             const message = this.elements.input.value.trim();
             if (!message || this.isStreaming) return;
 
-            // 检查 Turnstile 验证
-            if (this.config.requireTurnstile && !this.turnstileToken) {
-                this.addMessage('system', '请完成验证后再发送消息。');
-                return;
-            }
-
             // 添加用户消息
             this.addMessage('user', message);
             this.messages.push({ role: 'user', content: message });
@@ -361,10 +367,13 @@
                 // 处理流式响应
                 await this.handleStreamResponse(response, aiMessageBubble);
 
-                // 重置 Turnstile
-                if (this.config.requireTurnstile && window.turnstile) {
-                    window.turnstile.reset(this.turnstileWidgetId);
+                // 检查是否需要重新验证
+                if (this.config.requireTurnstile && this.config.requireTurnstileEveryMessage) {
+                    // 每次消息都需要重新验证
                     this.turnstileToken = null;
+                    this.elements.turnstileContainer.style.display = 'flex';
+                    this.elements.inputRow.style.display = 'none';
+                    window.turnstile.reset(this.turnstileWidgetId);
                 }
 
             } catch (error) {
@@ -374,7 +383,9 @@
                 this.elements.input.disabled = false;
                 this.elements.sendBtn.disabled = false;
                 this.isStreaming = false;
-                this.elements.input.focus();
+                if (this.elements.inputRow.style.display !== 'none') {
+                    this.elements.input.focus();
+                }
             }
         }
 
@@ -617,18 +628,38 @@
                 .l2d-turnstile-container {
                     display: flex;
                     justify-content: center;
-                    min-height: 0;
-                    transition: min-height 0.3s ease;
+                    align-items: center;
+                    min-height: 50px;
+                    transition: all 0.3s ease;
                 }
 
-                .l2d-turnstile-container:not(:empty) {
-                    min-height: 65px;
+                .l2d-turnstile-container:empty {
+                    display: none;
+                }
+
+                /* 调整 Turnstile widget 样式 */
+                .l2d-turnstile-container > div {
+                    transform: scale(0.85);
+                    transform-origin: center;
                 }
 
                 /* Input row */
                 .l2d-chat-input-row {
                     display: flex;
                     gap: 10px;
+                    opacity: 0;
+                    animation: l2d-fadein 0.3s ease forwards;
+                }
+
+                @keyframes l2d-fadein {
+                    from {
+                        opacity: 0;
+                        transform: translateY(10px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateY(0);
+                    }
                 }
 
                 .l2d-chat-input {
@@ -781,6 +812,9 @@ document.addEventListener('DOMContentLoaded', () => {
         position: 'right',
         theme: 'cute',
         showOnHover: true,
+        requireTurnstile: true,
+        turnstileSiteKey: 'YOUR_SITE_KEY',
+        requireTurnstileEveryMessage: false, // 是否每条消息都需要验证
         messages: {
             placeholder: '想和我聊什么呢？',
             title: 'Live2D 助手',
@@ -794,7 +828,9 @@ document.addEventListener('DOMContentLoaded', () => {
 window.L2DChatConfig = {
     theme: 'dark',
     position: 'left',
-    showOnHover: false  // 禁用悬停，只通过点击触发
+    showOnHover: false,  // 禁用悬停，只通过点击触发
+    requireTurnstile: true,
+    turnstileSiteKey: 'YOUR_SITE_KEY'
 };
 // 然后引入脚本，会自动使用配置
 
