@@ -1,5 +1,5 @@
 const LAppDefine = {
-    VIEW_MAX_SCALE: 2,
+    VIEW_MAX_SCALE: 0.8,
     VIEW_MIN_SCALE: 0.8,
     VIEW_LOGICAL_LEFT: -1,
     VIEW_LOGICAL_RIGHT: 1,
