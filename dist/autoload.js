@@ -56,10 +56,11 @@ function loadExternalResource(url, type) {
   // 配置选项的具体用法见 README.md
   initWidget({
     // waifuPath: live2d_path + 'waifu-tips.json',
-    waifuPath: 'https://cdn.jsdelivr.net/gh/xiaoheiCat/live2d-widget-xiaoheiCat@master/dist/waifu-tips.json',
+    waifuPath: 'https://fastly.jsdelivr.net/gh/xiaoheiCat/live2d-widget-xiaoheiCat@master/dist/waifu-tips.json',
     // cdnPath: 'https://fastly.jsdelivr.net/gh/fghrsh/live2d_api/',
     cubism2Path: live2d_path + 'live2d.min.js',
     cubism5Path: 'https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js',
+    modelId: Math.floor(Math.random() * 2),
     tools: ['hitokoto', 'quit'],
     logLevel: 'error',
     drag: false,
