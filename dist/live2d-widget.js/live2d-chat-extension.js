@@ -274,10 +274,14 @@
                     // 验证成功后隐藏验证码，显示输入框
                     this.elements.turnstileContainer.style.display = 'none';
                     this.elements.inputRow.style.display = 'flex';
+                    // 添加动画类
+                    this.elements.inputRow.classList.add('show-animation');
                     // 确保输入框可见后再聚焦
                     setTimeout(() => {
                         this.elements.input.focus();
-                    }, 100);
+                        // 移除动画类
+                        this.elements.inputRow.classList.remove('show-animation');
+                    }, 350);
                 },
                 'expired-callback': () => {
                     this.turnstileToken = null;
@@ -700,6 +704,7 @@
                     display: flex;
                     flex-direction: column;
                     gap: 10px;
+                    min-height: 70px; /* 固定最小高度，防止跳动 */
                 }
 
                 /* Turnstile container */
@@ -725,12 +730,10 @@
                 .l2d-chat-input-row {
                     display: flex;
                     gap: 10px;
-                    opacity: 1;
-                    animation: l2d-fadein 0.3s ease;
                 }
 
-                .l2d-chat-input-row[style*="display: none"] {
-                    animation: none;
+                .l2d-chat-input-row.show-animation {
+                    animation: l2d-fadein 0.3s ease;
                 }
 
                 @keyframes l2d-fadein {
