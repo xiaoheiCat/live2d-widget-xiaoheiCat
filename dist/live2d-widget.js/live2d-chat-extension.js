@@ -302,8 +302,8 @@
             
             // 初始化 Turnstile（如果需要且尚未初始化）
             if (this.config.requireTurnstile && this.config.turnstileSiteKey) {
-                if (!this.turnstileWidgetId) {
-                    this.initTurnstile();
+                if (!this.turnstileWidgetId && !this.turnstileToken) {
+                    this.showTurnstile();
                 } else if (this.turnstileToken) {
                     // 如果已经有 token，显示输入框
                     this.elements.inputRow.style.display = 'flex';
@@ -874,6 +874,8 @@
                     align-items: center;
                     gap: 4px;
                     height: 20px; /* 固定高度与单行文本一致 */
+                    padding: 0; /* 确保没有额外的内边距 */
+                    margin: 0; /* 确保没有额外的外边距 */
                 }
 
                 .l2d-chat-typing span {
@@ -902,6 +904,13 @@
                         transform: translateY(-6px);
                         opacity: 1;
                     }
+                }
+
+                /* 确保加载中的气泡样式正确 */
+                .l2d-chat-message.assistant .l2d-chat-bubble {
+                    min-height: 20px; /* 确保最小高度 */
+                    display: flex;
+                    align-items: center;
                 }
 
                 /* Scrollbar */
