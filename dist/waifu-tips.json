@@ -259,5 +259,9 @@
     "name": "阿库露",
     "paths": ["https://fastly.jsdelivr.net/gh/xiaoheiCat/xiaoheiCat-live2d-models@main/%E9%98%BF%E5%BA%93%E9%9C%B2_vts/%E9%98%BF%E5%BA%93%E9%9C%B2_vts.model3.json"],
     "message": "是阿库露酱哦，来自 @bilibili darkjungle8 ~"
+  }, {
+    "name": "Allium",
+    "paths": ["https://fastly.jsdelivr.net/gh/xiaoheiCat/xiaoheiCat-live2d-models@main/Allium/ariu.model3.json"],
+    "message": "是 Allium 酱哦，来自 @bilibili Yuri幽里_official ~"
   }]
 }
