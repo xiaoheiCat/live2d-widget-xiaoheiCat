@@ -104,7 +104,7 @@ class ModelManager {
         return this._modelTexturesId;
     }
     resetCanvas() {
-        document.getElementById('waifu-canvas').innerHTML = '<canvas id="live2d" width="800" height="800"></canvas>';
+        document.getElementById('waifu-canvas').innerHTML = '<canvas id="live2d" width="600" height="800"></canvas>';
     }
     fetchWithCache(url) {
         return __awaiter(this, void 0, void 0, function* () {
