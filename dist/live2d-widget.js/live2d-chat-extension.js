@@ -210,8 +210,12 @@
                 });
             }
 
-            // 关闭按钮
-            this.elements.closeBtn.addEventListener('click', () => this.hide());
+            // 关闭按钮 - 修复问题1：确保点击事件正确绑定
+            this.elements.closeBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.hide(true); // 强制隐藏
+            });
 
             // 发送消息
             this.elements.sendBtn.addEventListener('click', () => this.sendMessage());
@@ -300,73 +304,107 @@
             this.elements.container.classList.add('show');
             this.chatVisible = true;
             
-            // 初始化 Turnstile（如果需要且尚未初始化）
+            // 修复问题2：改进验证码显示逻辑
             if (this.config.requireTurnstile && this.config.turnstileSiteKey) {
-                if (!this.turnstileWidgetId && !this.turnstileToken) {
+                if (!this.turnstileToken) {
+                    // 需要验证码且没有 token，显示验证码
                     this.showTurnstile();
-                } else if (this.turnstileToken) {
-                    // 如果已经有 token，显示输入框
+                } else {
+                    // 已经有 token，显示输入框
+                    this.elements.turnstileContainer.style.display = 'none';
                     this.elements.inputRow.style.display = 'flex';
                 }
             } else {
-                // 如果不需要验证码，直接显示输入框
+                // 不需要验证码，直接显示输入框
+                this.elements.turnstileContainer.style.display = 'none';
                 this.elements.inputRow.style.display = 'flex';
+            }
+        }
+
+        // 显示 Turnstile 验证码
+        showTurnstile() {
+            this.elements.turnstileContainer.style.display = 'flex';
+            this.elements.inputRow.style.display = 'none';
+            
+            // 如果还没有初始化 widget，初始化它
+            if (this.turnstileWidgetId === null) {
+                this.initTurnstile();
+            } else if (window.turnstile) {
+                // 如果已经初始化过，重置它
+                window.turnstile.reset(this.turnstileWidgetId);
             }
         }
 
         // 初始化 Turnstile
         initTurnstile() {
-            if (!window.turnstile || !this.elements.turnstileContainer) return;
+            if (!window.turnstile || !this.elements.turnstileContainer) {
+                console.error('Turnstile not loaded or container not found');
+                // 如果 Turnstile 加载失败，显示输入框作为降级方案
+                this.elements.turnstileContainer.style.display = 'none';
+                this.elements.inputRow.style.display = 'flex';
+                return;
+            }
 
             // 清空容器以防重复渲染
             this.elements.turnstileContainer.innerHTML = '';
             
-            this.turnstileWidgetId = window.turnstile.render(this.elements.turnstileContainer, {
-                sitekey: this.config.turnstileSiteKey,
-                callback: (token) => {
-                    console.log('Turnstile verification successful');
-                    this.turnstileToken = token;
-                    // 验证成功后隐藏验证码，显示输入框
-                    this.elements.turnstileContainer.style.display = 'none';
-                    this.elements.inputRow.style.display = 'flex';
-                    // 添加动画类
-                    this.elements.inputRow.classList.add('show-animation');
-                    // 确保输入框可见后再聚焦
-                    setTimeout(() => {
-                        // 如果有待发送的消息，恢复到输入框
-                        if (this.pendingMessage) {
-                            this.elements.input.value = this.pendingMessage;
-                            // 自动发送
-                            this.sendMessage();
-                        } else {
-                            this.elements.input.focus();
-                        }
-                        // 移除动画类
-                        this.elements.inputRow.classList.remove('show-animation');
-                    }, 350);
-                },
-                'expired-callback': () => {
-                    console.log('Turnstile token expired');
-                    this.turnstileToken = null;
-                    // 验证过期，重新显示验证码
-                    this.elements.turnstileContainer.style.display = 'flex';
-                    this.elements.inputRow.style.display = 'none';
-                    if (window.turnstile && this.turnstileWidgetId !== null) {
-                        window.turnstile.reset(this.turnstileWidgetId);
-                    }
-                },
-                'error-callback': () => {
-                    console.error('Turnstile error');
-                    // 错误时也显示输入框，让用户可以继续使用
-                    this.elements.inputRow.style.display = 'flex';
-                },
-                size: 'normal',
-                theme: this.config.theme === 'dark' ? 'dark' : 'light'
-            });
+            try {
+                this.turnstileWidgetId = window.turnstile.render(this.elements.turnstileContainer, {
+                    sitekey: this.config.turnstileSiteKey,
+                    callback: (token) => {
+                        console.log('Turnstile verification successful');
+                        this.turnstileToken = token;
+                        // 验证成功后隐藏验证码，显示输入框
+                        this.elements.turnstileContainer.style.display = 'none';
+                        this.elements.inputRow.style.display = 'flex';
+                        // 添加动画类
+                        this.elements.inputRow.classList.add('show-animation');
+                        // 确保输入框可见后再聚焦
+                        setTimeout(() => {
+                            // 如果有待发送的消息，恢复到输入框
+                            if (this.pendingMessage) {
+                                this.elements.input.value = this.pendingMessage;
+                                // 自动发送
+                                this.sendMessage();
+                            } else {
+                                this.elements.input.focus();
+                            }
+                            // 移除动画类
+                            this.elements.inputRow.classList.remove('show-animation');
+                        }, 350);
+                    },
+                    'expired-callback': () => {
+                        console.log('Turnstile token expired');
+                        this.turnstileToken = null;
+                        // 验证过期，重新显示验证码
+                        this.showTurnstile();
+                    },
+                    'error-callback': () => {
+                        console.error('Turnstile error');
+                        // 错误时也显示输入框，让用户可以继续使用
+                        this.elements.turnstileContainer.style.display = 'none';
+                        this.elements.inputRow.style.display = 'flex';
+                    },
+                    size: 'normal',
+                    theme: this.config.theme === 'dark' ? 'dark' : 'light'
+                });
+            } catch (error) {
+                console.error('Failed to render Turnstile:', error);
+                // 渲染失败，显示输入框作为降级方案
+                this.elements.turnstileContainer.style.display = 'none';
+                this.elements.inputRow.style.display = 'flex';
+            }
         }
 
         // 隐藏聊天框
-        hide() {
+        hide(force = false) {
+            // 如果是强制隐藏（点击关闭按钮），立即隐藏
+            if (force) {
+                this.elements.container.classList.remove('show');
+                this.chatVisible = false;
+                return;
+            }
+            
             // 如果正在输入或有焦点，不要隐藏
             if (this.hasFocus() || this.isStreaming) {
                 console.log('Prevented hiding chat box due to focus or streaming');
@@ -479,10 +517,7 @@
                     
                     // 如果配置了每次消息都需要验证，立即显示验证码
                     if (this.config.requireTurnstileEveryMessage) {
-                        this.elements.turnstileContainer.innerHTML = '';
-                        this.elements.turnstileContainer.style.display = 'flex';
-                        this.elements.inputRow.style.display = 'none';
-                        this.initTurnstile();
+                        this.showTurnstile();
                     }
                 }
 
@@ -791,7 +826,7 @@
                 }
 
                 .l2d-turnstile-container:empty {
-                    display: none;
+                    display: none !important;
                 }
 
                 /* 调整 Turnstile widget 样式 */
