@@ -248,20 +248,16 @@
     "changeSuccess": "我的新衣服好看嘛？",
     "changeFail": "我还没有其他衣服呢！",
     "photo": "照好了嘛，是不是很可爱呢？",
-    "goodbye": "愿你有一天能与重要的人重逢。",
+    "goodbye": "愿你有一天能与重要的人重逢...",
     "hitokoto": "这句一言来自 <span>「$1」</span>，是 <span>$2</span> 在 hitokoto.cn 投稿的。",
     "welcome": "欢迎阅读<span>「$1」</span>",
     "referrer": "Hello！来自 <span>$1</span> 的朋友",
     "hoverBody": ["干嘛呢你，快把手拿开～～", "鼠…鼠标放错地方了！", "你要干嘛呀？", "喵喵喵？", "怕怕(ノ≧∇≦)ノ", "非礼呀！救命！", "这样的话，只能使用武力了！", "我要生气了哦", "不要动手动脚的！", "真…真的是不知羞耻！"],
-    "tapBody": [["是…是不小心碰到了吧…", "萝莉控是什么呀？", "你看到我的小熊了吗？", "再摸的话我可要报警了！⌇●﹏●⌇", "110 吗，这里有个变态一直在摸我(ó﹏ò｡)", "不要摸我了，我会告诉站长来打你的 QAQ！", "干嘛动我呀！小心我咬你！", "别摸我，有什么好摸的！"]]
+    "tapBody": [["是…是不小心碰到了吧…", "萝莉控是什么呀？", "你看到我的小熊了吗？", "再摸的话我可要报警了！⌇●﹏●⌇", "妖妖零吗，这里有个变态一直在摸我(ó﹏ò｡)", "不要摸我了，我会告诉我的主人来打你的 QAQ！", "干嘛动我呀！小心我咬你！", "别摸我，有什么好摸的！"]]
   },
   "models": [{
-    "name": "Haruto",
-    "paths": ["https://unpkg.com/live2d-widget-model-haruto@1.0.5/assets/haruto.model.json"],
-    "message": "是 Haruto 酱哦 ~"
-  }, {
-    "name": "Koharu",
-    "paths": ["https://unpkg.com/live2d-widget-model-koharu@1.0.5/assets/koharu.model.json"],
-    "message": "是 Koharu 酱哦 ~"
+    "name": "阿库露",
+    "paths": ["https://fastly.jsdelivr.net/gh/xiaoheiCat/xiaoheiCat-live2d-models@main/%E9%98%BF%E5%BA%93%E9%9C%B2_vts/%E9%98%BF%E5%BA%93%E9%9C%B2_vts.model3.json"],
+    "message": "是阿库露酱哦，来自 @bilibili darkjungle8 ~"
   }]
 }
