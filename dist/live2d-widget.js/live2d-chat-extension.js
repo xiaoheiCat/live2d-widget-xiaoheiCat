@@ -1,5 +1,5 @@
 // live2d-chat-extension.js
-// Live2D Widget 聊天扩展
+// Live2D Widget 聊天扩展 - 修正版本
 
 (function() {
     'use strict';
@@ -29,6 +29,7 @@
             this.chatVisible = false;
             this.turnstileToken = null;
             this.turnstileWidgetId = null;
+            this.inputFocused = false; // 添加输入框焦点状态
 
             // 初始化
             this.init();
@@ -175,7 +176,8 @@
                     let hideTimeout;
                     const startHideTimeout = () => {
                         hideTimeout = setTimeout(() => {
-                            if (!this.isMouseOverChat()) {
+                            // 检查是否正在输入或聊天框有焦点
+                            if (!this.isMouseOverChat() && !this.hasFocus()) {
                                 this.hide();
                             }
                         }, 500);
@@ -189,7 +191,7 @@
                     });
                     
                     this.elements.container.addEventListener('mouseleave', () => {
-                        if (!this.isMouseOverHoverArea()) {
+                        if (!this.isMouseOverHoverArea() && !this.hasFocus()) {
                             this.hide();
                         }
                     });
@@ -219,6 +221,20 @@
                 }
             });
 
+            // 输入框焦点事件 - 防止在输入时隐藏
+            this.elements.input.addEventListener('focus', () => {
+                this.inputFocused = true;
+            });
+
+            this.elements.input.addEventListener('blur', () => {
+                this.inputFocused = false;
+            });
+
+            // 防止聊天框内的点击事件冒泡
+            this.elements.container.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+
             // 添加触摸事件支持（移动端）
             if ('ontouchstart' in window) {
                 const live2dWidget = document.getElementById('live2d-widget');
@@ -228,6 +244,13 @@
                     });
                 }
             }
+        }
+
+        // 检查是否有焦点
+        hasFocus() {
+            return this.inputFocused || 
+                   this.elements.container.contains(document.activeElement) ||
+                   document.activeElement === this.elements.input;
         }
 
         // 检查鼠标是否在聊天框上
@@ -304,6 +327,11 @@
 
         // 隐藏聊天框
         hide() {
+            // 如果正在输入或有焦点，不要隐藏
+            if (this.hasFocus() || this.isStreaming) {
+                return;
+            }
+            
             this.elements.container.classList.remove('show');
             this.chatVisible = false;
             // 不要在隐藏聊天框时重置输入框的显示状态
