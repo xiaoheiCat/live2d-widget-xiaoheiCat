@@ -803,6 +803,7 @@
                     border-radius: 18px;
                     word-wrap: break-word;
                     white-space: pre-wrap;
+                    text-align: left; /* 确保所有消息内部文本都是左对齐 */
                 }
 
                 .l2d-chat-message.user .l2d-chat-bubble {
