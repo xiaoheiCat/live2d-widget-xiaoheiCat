@@ -247,9 +247,14 @@
             this.chatVisible = true;
             
             // 初始化 Turnstile（如果需要且尚未初始化）
-            if (this.config.requireTurnstile && this.config.turnstileSiteKey && !this.turnstileWidgetId) {
-                this.initTurnstile();
-            } else if (!this.config.requireTurnstile) {
+            if (this.config.requireTurnstile && this.config.turnstileSiteKey) {
+                if (!this.turnstileWidgetId) {
+                    this.initTurnstile();
+                } else if (this.turnstileToken) {
+                    // 如果已经有 token，显示输入框
+                    this.elements.inputRow.style.display = 'flex';
+                }
+            } else {
                 // 如果不需要验证码，直接显示输入框
                 this.elements.inputRow.style.display = 'flex';
             }
@@ -259,6 +264,9 @@
         initTurnstile() {
             if (!window.turnstile || !this.elements.turnstileContainer) return;
 
+            // 清空容器以防重复渲染
+            this.elements.turnstileContainer.innerHTML = '';
+            
             this.turnstileWidgetId = window.turnstile.render(this.elements.turnstileContainer, {
                 sitekey: this.config.turnstileSiteKey,
                 callback: (token) => {
@@ -266,16 +274,26 @@
                     // 验证成功后隐藏验证码，显示输入框
                     this.elements.turnstileContainer.style.display = 'none';
                     this.elements.inputRow.style.display = 'flex';
-                    this.elements.input.focus();
+                    // 确保输入框可见后再聚焦
+                    setTimeout(() => {
+                        this.elements.input.focus();
+                    }, 100);
                 },
                 'expired-callback': () => {
                     this.turnstileToken = null;
                     // 验证过期，重新显示验证码
                     this.elements.turnstileContainer.style.display = 'flex';
                     this.elements.inputRow.style.display = 'none';
-                    window.turnstile.reset(this.turnstileWidgetId);
+                    if (window.turnstile && this.turnstileWidgetId !== null) {
+                        window.turnstile.reset(this.turnstileWidgetId);
+                    }
                 },
-                size: 'normal', // 使用正常大小而不是 compact
+                'error-callback': () => {
+                    console.error('Turnstile error');
+                    // 错误时也显示输入框，让用户可以继续使用
+                    this.elements.inputRow.style.display = 'flex';
+                },
+                size: 'normal',
                 theme: this.config.theme === 'dark' ? 'dark' : 'light'
             });
         }
@@ -284,6 +302,7 @@
         hide() {
             this.elements.container.classList.remove('show');
             this.chatVisible = false;
+            // 不要在隐藏聊天框时重置输入框的显示状态
         }
 
         // 切换显示/隐藏
@@ -647,8 +666,12 @@
                 .l2d-chat-input-row {
                     display: flex;
                     gap: 10px;
-                    opacity: 0;
-                    animation: l2d-fadein 0.3s ease forwards;
+                    opacity: 1;
+                    animation: l2d-fadein 0.3s ease;
+                }
+
+                .l2d-chat-input-row[style*="display: none"] {
+                    animation: none;
                 }
 
                 @keyframes l2d-fadein {
