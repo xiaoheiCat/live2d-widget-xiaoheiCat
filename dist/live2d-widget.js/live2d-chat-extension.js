@@ -30,6 +30,7 @@
             this.turnstileToken = null;
             this.turnstileWidgetId = null;
             this.inputFocused = false; // 添加输入框焦点状态
+            this.pendingMessage = null; // 添加待发送消息
 
             // 初始化
             this.init();
@@ -323,6 +324,7 @@
             this.turnstileWidgetId = window.turnstile.render(this.elements.turnstileContainer, {
                 sitekey: this.config.turnstileSiteKey,
                 callback: (token) => {
+                    console.log('Turnstile verification successful');
                     this.turnstileToken = token;
                     // 验证成功后隐藏验证码，显示输入框
                     this.elements.turnstileContainer.style.display = 'none';
@@ -331,12 +333,20 @@
                     this.elements.inputRow.classList.add('show-animation');
                     // 确保输入框可见后再聚焦
                     setTimeout(() => {
-                        this.elements.input.focus();
+                        // 如果有待发送的消息，恢复到输入框
+                        if (this.pendingMessage) {
+                            this.elements.input.value = this.pendingMessage;
+                            // 自动发送
+                            this.sendMessage();
+                        } else {
+                            this.elements.input.focus();
+                        }
                         // 移除动画类
                         this.elements.inputRow.classList.remove('show-animation');
                     }, 350);
                 },
                 'expired-callback': () => {
+                    console.log('Turnstile token expired');
                     this.turnstileToken = null;
                     // 验证过期，重新显示验证码
                     this.elements.turnstileContainer.style.display = 'flex';
@@ -860,15 +870,16 @@
 
                 /* Typing indicator */
                 .l2d-chat-typing {
-                    display: flex;
+                    display: inline-flex;
                     align-items: center;
                     gap: 4px;
+                    height: 20px; /* 固定高度与单行文本一致 */
                 }
 
                 .l2d-chat-typing span {
                     display: inline-block;
-                    width: 8px;
-                    height: 8px;
+                    width: 6px;
+                    height: 6px;
                     border-radius: 50%;
                     background-color: #666;
                     animation: l2d-typing 1.4s infinite;
@@ -888,7 +899,7 @@
                         opacity: 0.4;
                     }
                     30% {
-                        transform: translateY(-10px);
+                        transform: translateY(-6px);
                         opacity: 1;
                     }
                 }
