@@ -60,7 +60,7 @@ function loadExternalResource(url, type) {
     cubism2Path: live2d_path + 'live2d.min.js',
     cubism5Path: 'https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js',
     modelId: Math.floor(Math.random() * 2),
-    tools: ['hitokoto', 'quit'],
+    tools: ['hitokoto', 'switch-model', 'quit'],
     logLevel: 'error',
     drag: false,
   });
