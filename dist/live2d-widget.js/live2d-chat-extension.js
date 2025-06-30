@@ -330,8 +330,17 @@
             if (this.turnstileWidgetId === null) {
                 this.initTurnstile();
             } else if (window.turnstile) {
-                // 如果已经初始化过，重置它
-                window.turnstile.reset(this.turnstileWidgetId);
+                // 如果已经初始化过，先销毁旧的，再创建新的
+                try {
+                    window.turnstile.remove(this.turnstileWidgetId);
+                } catch (e) {
+                    console.warn('Failed to remove old turnstile widget:', e);
+                }
+                this.turnstileWidgetId = null;
+                // 重新初始化
+                setTimeout(() => {
+                    this.initTurnstile();
+                }, 100);
             }
         }
 
@@ -457,17 +466,34 @@
             const message = this.elements.input.value.trim();
             if (!message || this.isStreaming) return;
 
+            // 检查是否需要验证码
+            if (this.config.requireTurnstile && this.config.turnstileSiteKey && !this.turnstileToken) {
+                // 保存待发送的消息
+                this.pendingMessage = message;
+                // 显示验证码
+                this.showTurnstile();
+                return;
+            }
+
             // 添加用户消息
             this.addMessage('user', message);
             this.messages.push({ role: 'user', content: message });
             
-            // 清空输入框
+            // 清空输入框和待发送消息
             this.elements.input.value = '';
+            this.pendingMessage = null;
             
             // 禁用输入
             this.elements.input.disabled = true;
             this.elements.sendBtn.disabled = true;
             this.isStreaming = true;
+
+            // 如果需要验证码，立即显示验证码（为下一次消息准备）
+            if (this.config.requireTurnstile && this.config.turnstileSiteKey) {
+                // 隐藏输入框，显示验证码
+                this.elements.inputRow.style.display = 'none';
+                this.showTurnstile();
+            }
 
             // 添加 AI 回复占位符
             const aiMessageBubble = this.addMessage('assistant', '', true);
@@ -510,28 +536,27 @@
                 // 处理流式响应
                 await this.handleStreamResponse(response, aiMessageBubble);
 
-                // 检查是否需要重新验证
-                if (this.config.requireTurnstile) {
-                    // 重置验证状态，下次发送消息时需要重新验证
-                    this.turnstileToken = null;
-                    
-                    // 如果配置了每次消息都需要验证，立即显示验证码
-                    if (this.config.requireTurnstileEveryMessage) {
-                        this.showTurnstile();
-                    }
-                }
+                // 消息发送成功后，立即重置 token
+                // 这样下次发送消息时会要求重新验证
+                this.turnstileToken = null;
 
             } catch (error) {
                 console.error('Chat error:', error);
                 const errorMessage = error.message || this.config.messages.error;
                 aiMessageBubble.innerHTML = `<span style="color: #dc3545;">${errorMessage}</span>`;
+                
+                // 如果是验证失败，清空 token 并重新显示验证码
+                if (errorMessage.includes('验证失败') || errorMessage.includes('verification failed')) {
+                    this.turnstileToken = null;
+                    this.showTurnstile();
+                }
             } finally {
                 this.elements.input.disabled = false;
                 this.elements.sendBtn.disabled = false;
                 this.isStreaming = false;
-                if (this.elements.inputRow.style.display !== 'none') {
-                    this.elements.input.focus();
-                }
+                
+                // 流式响应结束后，验证码应该已经准备好了
+                // 不需要在这里做额外操作，因为验证码已经在发送消息时显示了
             }
         }
 
