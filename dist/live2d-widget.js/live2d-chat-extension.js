@@ -12,14 +12,15 @@
                 apiEndpoint: options.apiEndpoint || '/api/chat',
                 configEndpoint: options.configEndpoint || '/api/config',
                 position: options.position || 'right', // 聊天框位置：left, right
-                theme: options.theme || 'default', // 主题：default, dark, cute
+                theme: options.theme || 'cute', // 主题：default, dark, cute
                 showOnHover: options.showOnHover !== false, // 悬停显示
                 hoverArea: options.hoverArea || null, // 自定义悬停区域
                 messages: options.messages || {
                     placeholder: '输入消息...',
                     title: '与我聊天',
                     error: '哎呀，我暂时还不想回答这个问题，等一会儿再来问我吧。',
-                    thinking: '思考中...'
+                    thinking: '思考中...',
+                    verifying: '正在验证您是否是机械霸王龙...' // 添加验证提示文本
                 },
                 ...options
             };
@@ -326,6 +327,17 @@
             this.elements.turnstileContainer.style.display = 'flex';
             this.elements.inputRow.style.display = 'none';
             
+            // 添加加载提示文本
+            if (!this.elements.turnstileContainer.querySelector('.l2d-turnstile-loading')) {
+                const loadingText = document.createElement('div');
+                loadingText.className = 'l2d-turnstile-loading';
+                loadingText.innerHTML = `
+                    <div class="l2d-loading-spinner"></div>
+                    <div class="l2d-loading-text">${this.config.messages.verifying}</div>
+                `;
+                this.elements.turnstileContainer.appendChild(loadingText);
+            }
+            
             // 如果还没有初始化 widget，初始化它
             if (this.turnstileWidgetId === null) {
                 this.initTurnstile();
@@ -354,8 +366,7 @@
                 return;
             }
 
-            // 清空容器以防重复渲染
-            this.elements.turnstileContainer.innerHTML = '';
+            // 不清空容器，让 turnstile.render 自动覆盖加载提示
             
             try {
                 this.turnstileWidgetId = window.turnstile.render(this.elements.turnstileContainer, {
@@ -718,6 +729,10 @@
                     color: #fff;
                 }
 
+                .l2d-chat-container.dark .l2d-loading-text {
+                    color: #ccc;
+                }
+
                 /* Cute theme */
                 .l2d-chat-container.cute .l2d-chat-header {
                     background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
@@ -729,6 +744,15 @@
 
                 .l2d-chat-container.cute .l2d-chat-message.user .l2d-chat-bubble {
                     background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
+                }
+
+                .l2d-chat-container.cute .l2d-loading-spinner {
+                    border-color: #ff9a9e;
+                    border-top-color: transparent;
+                }
+
+                .l2d-chat-container.cute .l2d-loading-text {
+                    color: #ff6b6b;
                 }
 
                 /* Header */
@@ -849,6 +873,7 @@
                     align-items: center;
                     min-height: 50px;
                     transition: all 0.3s ease;
+                    position: relative;
                 }
 
                 .l2d-turnstile-container:empty {
@@ -856,9 +881,52 @@
                 }
 
                 /* 调整 Turnstile widget 样式 */
-                .l2d-turnstile-container > div {
+                .l2d-turnstile-container > div:not(.l2d-turnstile-loading) {
                     transform: scale(0.85);
                     transform-origin: center;
+                }
+
+                /* 加载提示样式 */
+                .l2d-turnstile-loading {
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 12px;
+                    background: rgba(255, 255, 255, 0.95);
+                    z-index: 1;
+                }
+
+                .l2d-loading-spinner {
+                    width: 24px;
+                    height: 24px;
+                    border: 3px solid #667eea;
+                    border-top-color: transparent;
+                    border-radius: 50%;
+                    animation: l2d-spin 0.8s linear infinite;
+                }
+
+                @keyframes l2d-spin {
+                    to { transform: rotate(360deg); }
+                }
+
+                .l2d-loading-text {
+                    font-size: 14px;
+                    color: #666;
+                    font-weight: 500;
+                    text-align: center;
+                    padding: 0 20px;
+                }
+
+                /* Turnstile iframe 会自动覆盖加载提示 */
+                .l2d-turnstile-container iframe {
+                    z-index: 2;
+                    position: relative;
                 }
 
                 /* Input row */
@@ -1049,7 +1117,8 @@ document.addEventListener('DOMContentLoaded', () => {
             placeholder: '想和我聊什么呢？',
             title: 'Live2D 助手',
             error: '哎呀，出错了呢~',
-            thinking: '让我想想...'
+            thinking: '让我想想...',
+            verifying: '正在验证您是否是机械霸王龙...'
         }
     });
 });
@@ -1060,7 +1129,10 @@ window.L2DChatConfig = {
     position: 'left',
     showOnHover: false,  // 禁用悬停，只通过点击触发
     requireTurnstile: true,
-    turnstileSiteKey: 'YOUR_SITE_KEY'
+    turnstileSiteKey: 'YOUR_SITE_KEY',
+    messages: {
+        verifying: '验证中，请稍候...'
+    }
 };
 // 然后引入脚本，会自动使用配置
 
