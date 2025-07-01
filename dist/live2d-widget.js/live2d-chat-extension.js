@@ -327,20 +327,24 @@
             this.elements.turnstileContainer.style.display = 'flex';
             this.elements.inputRow.style.display = 'none';
             
-            // 添加加载提示文本
-            if (!this.elements.turnstileContainer.querySelector('.l2d-turnstile-loading')) {
-                const loadingText = document.createElement('div');
-                loadingText.className = 'l2d-turnstile-loading';
-                loadingText.innerHTML = `
-                    <div class="l2d-loading-spinner"></div>
-                    <div class="l2d-loading-text">${this.config.messages.verifying}</div>
-                `;
-                this.elements.turnstileContainer.appendChild(loadingText);
-            }
+            // 先清空容器
+            this.elements.turnstileContainer.innerHTML = '';
+            
+            // 添加加载提示文本（作为背景）
+            const loadingText = document.createElement('div');
+            loadingText.className = 'l2d-turnstile-loading';
+            loadingText.innerHTML = `
+                <div class="l2d-loading-spinner"></div>
+                <div class="l2d-loading-text">${this.config.messages.verifying}</div>
+            `;
+            this.elements.turnstileContainer.appendChild(loadingText);
             
             // 如果还没有初始化 widget，初始化它
             if (this.turnstileWidgetId === null) {
-                this.initTurnstile();
+                // 延迟初始化，确保加载提示先显示
+                setTimeout(() => {
+                    this.initTurnstile();
+                }, 100);
             } else if (window.turnstile) {
                 // 如果已经初始化过，先销毁旧的，再创建新的
                 try {
@@ -366,10 +370,13 @@
                 return;
             }
 
-            // 不清空容器，让 turnstile.render 自动覆盖加载提示
+            // 创建一个新的容器用于 Turnstile widget
+            const widgetContainer = document.createElement('div');
+            widgetContainer.className = 'l2d-turnstile-widget';
+            this.elements.turnstileContainer.appendChild(widgetContainer);
             
             try {
-                this.turnstileWidgetId = window.turnstile.render(this.elements.turnstileContainer, {
+                this.turnstileWidgetId = window.turnstile.render(widgetContainer, {
                     sitekey: this.config.turnstileSiteKey,
                     callback: (token) => {
                         console.log('Turnstile verification successful');
@@ -880,13 +887,7 @@
                     display: none !important;
                 }
 
-                /* 调整 Turnstile widget 样式 */
-                .l2d-turnstile-container > div:not(.l2d-turnstile-loading) {
-                    transform: scale(0.85);
-                    transform-origin: center;
-                }
-
-                /* 加载提示样式 */
+                /* 加载提示样式 - 作为背景层 */
                 .l2d-turnstile-loading {
                     position: absolute;
                     top: 0;
@@ -898,8 +899,9 @@
                     align-items: center;
                     justify-content: center;
                     gap: 12px;
-                    background: rgba(255, 255, 255, 0.95);
-                    z-index: 1;
+                    background: transparent;
+                    z-index: 0; /* 设为最底层 */
+                    pointer-events: none; /* 不阻挡鼠标事件 */
                 }
 
                 .l2d-loading-spinner {
@@ -923,10 +925,39 @@
                     padding: 0 20px;
                 }
 
-                /* Turnstile iframe 会自动覆盖加载提示 */
-                .l2d-turnstile-container iframe {
-                    z-index: 2;
+                /* Turnstile widget 容器样式 */
+                .l2d-turnstile-container > div:not(.l2d-turnstile-loading) {
+                    transform: scale(0.85);
+                    transform-origin: center;
                     position: relative;
+                    z-index: 10; /* 确保在加载提示之上 */
+                    background: white; /* 添加背景色以完全覆盖 */
+                    border-radius: 8px;
+                }
+
+                /* Turnstile widget 专用容器 */
+                .l2d-turnstile-widget {
+                    position: relative;
+                    z-index: 10;
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                }
+
+                /* 确保 Turnstile iframe 在最上层 */
+                .l2d-turnstile-container iframe {
+                    position: relative;
+                    z-index: 10;
+                }
+
+                /* Dark theme 下的调整 */
+                .l2d-chat-container.dark .l2d-chat-input-container {
+                    background: #1a1a1a;
+                    border-top-color: #444;
+                }
+
+                .l2d-chat-container.dark .l2d-turnstile-widget {
+                    background: transparent;
                 }
 
                 /* Input row */
