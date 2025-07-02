@@ -1,5 +1,5 @@
 // live2d-chat-extension.js
-// Live2D Widget 聊天扩展 - 使用 Cap 隐身模式
+// Live2D Widget 聊天扩展
 
 (function() {
     'use strict';
