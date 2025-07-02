@@ -1,5 +1,5 @@
 // live2d-chat-extension.js
-// Live2D Widget 聊天扩展
+// Live2D Widget 聊天扩展 - 修复版
 
 (function() {
     'use strict';
@@ -33,6 +33,7 @@
             this.inputFocused = false;
             this.capInstance = null; // Cap 实例
             this.isVerifying = false; // 是否正在验证
+            this.elements = null; // 初始化为 null
 
             // 初始化
             this.init();
@@ -40,25 +41,29 @@
 
         // 初始化
         async init() {
-            // 加载配置
-            await this.loadConfig();
-            
-            // 初始化 Cap（如果需要）
-            if (this.config.requireCap && this.config.capApiEndpoint) {
-                await this.initializeCap();
+            try {
+                // 加载配置
+                await this.loadConfig();
+                
+                // 初始化 Cap（如果需要）
+                if (this.config.requireCap && this.config.capApiEndpoint) {
+                    await this.initializeCap();
+                }
+                
+                // 创建聊天界面
+                this.createChatUI();
+                
+                // 创建悬停区域（如果需要）
+                this.createHoverArea();
+                
+                // 绑定事件
+                this.bindEvents();
+                
+                // 添加样式
+                this.injectStyles();
+            } catch (error) {
+                console.error('Failed to initialize L2DChatExtension:', error);
             }
-            
-            // 创建聊天界面
-            this.createChatUI();
-            
-            // 创建悬停区域（如果需要）
-            this.createHoverArea();
-            
-            // 绑定事件
-            this.bindEvents();
-            
-            // 添加样式
-            this.injectStyles();
         }
 
         // 创建悬停区域
@@ -129,6 +134,12 @@
 
         // 创建聊天UI
         createChatUI() {
+            // 检查是否已存在聊天容器
+            const existingContainer = document.getElementById('l2d-chat-container');
+            if (existingContainer) {
+                existingContainer.remove();
+            }
+
             // 创建聊天容器
             const chatHTML = `
                 <script src="https://unpkg.com/@cap.js/widget@0.1.25"></script>
@@ -174,10 +185,23 @@
                 inputRow: document.getElementById('l2d-chat-input-row'),
                 verificationHint: document.getElementById('l2d-verification-hint')
             };
+
+            // 验证所有元素都已创建
+            for (const [key, element] of Object.entries(this.elements)) {
+                if (!element) {
+                    console.error(`Failed to find element: ${key}`);
+                }
+            }
         }
 
         // 绑定事件
         bindEvents() {
+            // 确保元素存在
+            if (!this.elements || !this.elements.container) {
+                console.error('Cannot bind events: elements not initialized');
+                return;
+            }
+
             // 悬停事件处理
             if (this.config.showOnHover) {
                 const hoverTarget = this.config.hoverArea || document.getElementById('l2d-hover-area');
@@ -226,46 +250,53 @@
             }
 
             // 关闭按钮
-            this.elements.closeBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                this.hide(true); // 强制隐藏
-            });
+            if (this.elements.closeBtn) {
+                this.elements.closeBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.hide(true); // 强制隐藏
+                });
+            }
 
             // 发送消息
-            this.elements.sendBtn.addEventListener('click', () => this.sendMessage());
-            this.elements.input.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    this.sendMessage();
-                }
-            });
+            if (this.elements.sendBtn) {
+                this.elements.sendBtn.addEventListener('click', () => this.sendMessage());
+            }
+            
+            if (this.elements.input) {
+                this.elements.input.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        this.sendMessage();
+                    }
+                });
 
-            // 输入框焦点事件 - 防止在输入时隐藏
-            this.elements.input.addEventListener('focus', () => {
-                this.inputFocused = true;
-            });
+                // 输入框焦点事件 - 防止在输入时隐藏
+                this.elements.input.addEventListener('focus', () => {
+                    this.inputFocused = true;
+                });
 
-            this.elements.input.addEventListener('blur', () => {
-                this.inputFocused = false;
-            });
+                this.elements.input.addEventListener('blur', () => {
+                    this.inputFocused = false;
+                });
 
-            // 监听输入事件，防止在输入时隐藏
-            this.elements.input.addEventListener('input', (e) => {
-                e.stopPropagation();
-                this.inputFocused = true;
-            });
+                // 监听输入事件，防止在输入时隐藏
+                this.elements.input.addEventListener('input', (e) => {
+                    e.stopPropagation();
+                    this.inputFocused = true;
+                });
 
-            // 监听所有键盘事件，防止在输入时隐藏
-            this.elements.input.addEventListener('keydown', (e) => {
-                e.stopPropagation();
-                this.inputFocused = true;
-            });
+                // 监听所有键盘事件，防止在输入时隐藏
+                this.elements.input.addEventListener('keydown', (e) => {
+                    e.stopPropagation();
+                    this.inputFocused = true;
+                });
 
-            this.elements.input.addEventListener('keyup', (e) => {
-                e.stopPropagation();
-                this.inputFocused = true;
-            });
+                this.elements.input.addEventListener('keyup', (e) => {
+                    e.stopPropagation();
+                    this.inputFocused = true;
+                });
+            }
 
             // 防止聊天框内的点击事件冒泡
             this.elements.container.addEventListener('click', (e) => {
@@ -298,6 +329,9 @@
 
         // 检查是否有焦点
         hasFocus() {
+            if (!this.elements || !this.elements.container || !this.elements.input) {
+                return false;
+            }
             return this.inputFocused || 
                    this.elements.container.contains(document.activeElement) ||
                    document.activeElement === this.elements.input;
@@ -305,6 +339,9 @@
 
         // 检查鼠标是否在聊天框上
         isMouseOverChat() {
+            if (!this.elements || !this.elements.container) {
+                return false;
+            }
             return this.elements.container.matches(':hover');
         }
 
@@ -316,12 +353,20 @@
 
         // 显示聊天框
         show() {
+            if (!this.elements || !this.elements.container) {
+                console.error('Cannot show chat: container not found');
+                return;
+            }
             this.elements.container.classList.add('show');
             this.chatVisible = true;
         }
 
         // 隐藏聊天框
         hide(force = false) {
+            if (!this.elements || !this.elements.container) {
+                return;
+            }
+
             // 如果是强制隐藏（点击关闭按钮），立即隐藏
             if (force) {
                 this.elements.container.classList.remove('show');
@@ -350,6 +395,11 @@
 
         // 添加消息到界面
         addMessage(role, content, isStreaming = false) {
+            if (!this.elements || !this.elements.messages) {
+                console.error('Cannot add message: messages container not found');
+                return null;
+            }
+
             const messageEl = document.createElement('div');
             messageEl.className = `l2d-chat-message ${role}`;
             
@@ -377,15 +427,23 @@
 
         // 显示验证提示
         showVerificationHint() {
+            if (!this.elements || !this.elements.verificationHint) {
+                return;
+            }
             this.elements.verificationHint.style.display = 'block';
             this.elements.verificationHint.classList.add('show');
         }
 
         // 隐藏验证提示
         hideVerificationHint() {
+            if (!this.elements || !this.elements.verificationHint) {
+                return;
+            }
             this.elements.verificationHint.classList.remove('show');
             setTimeout(() => {
-                this.elements.verificationHint.style.display = 'none';
+                if (this.elements && this.elements.verificationHint) {
+                    this.elements.verificationHint.style.display = 'none';
+                }
             }, 300);
         }
 
@@ -416,6 +474,11 @@
 
         // 发送消息
         async sendMessage() {
+            if (!this.elements || !this.elements.input) {
+                console.error('Cannot send message: input element not found');
+                return;
+            }
+
             const message = this.elements.input.value.trim();
             if (!message || this.isStreaming) return;
 
@@ -428,11 +491,18 @@
             
             // 禁用输入
             this.elements.input.disabled = true;
-            this.elements.sendBtn.disabled = true;
+            if (this.elements.sendBtn) {
+                this.elements.sendBtn.disabled = true;
+            }
             this.isStreaming = true;
 
             // 添加 AI 回复占位符
             const aiMessageBubble = this.addMessage('assistant', '', true);
+            if (!aiMessageBubble) {
+                console.error('Failed to create AI message bubble');
+                this.isStreaming = false;
+                return;
+            }
 
             try {
                 // 获取 Cap token（如果需要）
@@ -487,12 +557,15 @@
                 const errorMessage = error.message || this.config.messages.error;
                 aiMessageBubble.innerHTML = `<span style="color: #dc3545;">${errorMessage}</span>`;
             } finally {
-                this.elements.input.disabled = false;
-                this.elements.sendBtn.disabled = false;
+                if (this.elements && this.elements.input) {
+                    this.elements.input.disabled = false;
+                    // 聚焦输入框
+                    this.elements.input.focus();
+                }
+                if (this.elements && this.elements.sendBtn) {
+                    this.elements.sendBtn.disabled = false;
+                }
                 this.isStreaming = false;
-                
-                // 聚焦输入框
-                this.elements.input.focus();
             }
         }
 
@@ -539,7 +612,9 @@
                                     }
                                     content += delta;
                                     messageBubble.textContent = content;
-                                    this.elements.messages.scrollTop = this.elements.messages.scrollHeight;
+                                    if (this.elements && this.elements.messages) {
+                                        this.elements.messages.scrollTop = this.elements.messages.scrollHeight;
+                                    }
                                 }
                                 
                                 // 检查是否结束
@@ -585,6 +660,11 @@
 
         // 注入样式
         injectStyles() {
+            // 检查是否已存在样式
+            if (document.getElementById('l2d-chat-styles')) {
+                return;
+            }
+
             const styles = `
                 /* 悬停区域样式 */
                 .l2d-hover-area {
@@ -938,6 +1018,7 @@
             `;
 
             const styleEl = document.createElement('style');
+            styleEl.id = 'l2d-chat-styles';
             styleEl.textContent = styles;
             document.head.appendChild(styleEl);
         }
@@ -951,7 +1032,11 @@
         document.addEventListener('DOMContentLoaded', () => {
             // 等待 Live2D 初始化完成
             setTimeout(() => {
-                window.l2dChat = new L2DChatExtension(window.L2DChatConfig || {});
+                try {
+                    window.l2dChat = new L2DChatExtension(window.L2DChatConfig || {});
+                } catch (error) {
+                    console.error('Failed to auto-initialize L2DChatExtension:', error);
+                }
             }, 1000);
         });
     }
