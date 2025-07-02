@@ -103,24 +103,33 @@
 
         // 初始化 Cap
         async initializeCap() {
-            // 检查 Cap 是否已加载
             if (typeof window.Cap === 'undefined') {
                 console.warn('Cap library not loaded. Make sure to include the Cap widget script.');
                 return;
             }
-
+        
             try {
-                // 创建 Cap 实例（隐身模式）
+                // 对于 Standalone 模式，需要提取基础 URL 和路径
+                const capUrl = new URL(this.config.capApiEndpoint);
+                const apiPath = capUrl.pathname;
+                
+                // 创建 Cap 实例
                 this.capInstance = new window.Cap({
-                    apiEndpoint: this.config.capApiEndpoint,
+                    apiEndpoint: capUrl.origin + apiPath, // 完整的 URL
                     workers: navigator.hardwareConcurrency || 8
                 });
-
-                // 监听进度事件（可选）
+        
+                // 监听进度事件
                 this.capInstance.addEventListener('progress', (event) => {
                     console.log(`Cap solving: ${event.detail.progress}%`);
+                    
+                    // 可选：更新验证提示文本显示进度
+                    const verificationText = document.querySelector('.l2d-verification-text');
+                    if (verificationText) {
+                        verificationText.textContent = `${this.config.messages.verifying} ${event.detail.progress}%`;
+                    }
                 });
-
+        
                 console.log('Cap initialized successfully');
             } catch (error) {
                 console.error('Failed to initialize Cap:', error);
