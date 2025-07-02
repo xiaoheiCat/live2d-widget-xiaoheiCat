@@ -131,6 +131,7 @@
         createChatUI() {
             // 创建聊天容器
             const chatHTML = `
+                <script src="https://unpkg.com/@cap.js/widget@0.1.25"></script>
                 <div id="l2d-chat-container" class="l2d-chat-container ${this.config.position} ${this.config.theme}">
                     <div class="l2d-chat-header">
                         <span class="l2d-chat-title">${this.config.messages.title}</span>
