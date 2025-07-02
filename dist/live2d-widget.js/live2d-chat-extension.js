@@ -15,7 +15,6 @@
                 theme: options.theme || 'cute', // 主题：default, dark, cute
                 showOnHover: options.showOnHover !== false, // 悬停显示
                 hoverArea: options.hoverArea || null, // 自定义悬停区域
-                requireCap: true, // 是否需要 Cap 验证
                 capApiEndpoint: 'https://cap.thatlink.top/f98a68634c/api', // Cap Api EndPoint
                 messages: options.messages || {
                     placeholder: '输入消息...',
@@ -43,10 +42,8 @@
             // 加载配置
             await this.loadConfig();
             
-            // 初始化 Cap（如果需要）
-            if (this.config.requireCap && this.config.capApiEndpoint) {
-                await this.initializeCap();
-            }
+            // 初始化 Cap
+            await this.initializeCap();
             
             // 创建聊天界面
             this.createChatUI();
@@ -395,10 +392,6 @@
 
         // 获取 Cap token
         async getCapToken() {
-            if (!this.config.requireCap || !this.capInstance) {
-                return null;
-            }
-
             try {
                 this.isVerifying = true;
                 this.showVerificationHint();
@@ -441,12 +434,10 @@
             try {
                 // 获取 Cap token（如果需要）
                 let capToken = null;
-                if (this.config.requireCap) {
-                    try {
-                        capToken = await this.getCapToken();
-                    } catch (error) {
-                        throw new Error(error.message || '验证失败');
-                    }
+                try {
+                    capToken = await this.getCapToken();
+                } catch (error) {
+                    throw new Error(error.message || '验证失败');
                 }
 
                 // 准备请求数据
@@ -977,7 +968,6 @@ document.addEventListener('DOMContentLoaded', () => {
         position: 'right',
         theme: 'cute',
         showOnHover: true,
-        requireCap: true, // 启用 Cap 验证
         capApiEndpoint: 'https://cap.example.com/YOUR_SITE_KEY/', // Cap API 端点
         messages: {
             placeholder: '想和我聊什么呢？',
@@ -994,7 +984,6 @@ window.L2DChatConfig = {
     theme: 'dark',
     position: 'left',
     showOnHover: false,  // 禁用悬停，只通过点击触发
-    requireCap: true,
     capApiEndpoint: 'https://cap.example.com/YOUR_SITE_KEY/',
     messages: {
         verifying: '验证中，请稍候...'
@@ -1006,7 +995,6 @@ window.L2DChatConfig = {
 window.L2DChatConfig = {
     hoverArea: document.getElementById('my-custom-hover-area'),
     showOnHover: true,
-    requireCap: true,
     capApiEndpoint: 'https://cap.example.com/YOUR_SITE_KEY/'
 };
 
