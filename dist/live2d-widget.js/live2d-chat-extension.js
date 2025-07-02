@@ -16,7 +16,7 @@
                 showOnHover: options.showOnHover !== false, // 悬停显示
                 hoverArea: options.hoverArea || null, // 自定义悬停区域
                 requireCap: true, // 是否需要 Cap 验证
-                capApiEndpoint: 'https://cap.thatlink.top/f98a68634c/', // Cap Api EndPoint
+                capApiEndpoint: 'https://cap.thatlink.top/f98a68634c/api', // Cap Api EndPoint
                 messages: options.messages || {
                     placeholder: '输入消息...',
                     title: '与我聊天',
