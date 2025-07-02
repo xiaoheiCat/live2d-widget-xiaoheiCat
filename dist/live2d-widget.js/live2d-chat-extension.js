@@ -91,7 +91,16 @@
                 const response = await fetch(this.config.configEndpoint);
                 if (response.ok) {
                     const serverConfig = await response.json();
+                    // 保存客户端的关键配置
+                    const clientCapEndpoint = this.config.capApiEndpoint;
+                    
+                    // 合并配置
                     Object.assign(this.config, serverConfig);
+                    
+                    // 如果服务器没有提供 capApiEndpoint，使用客户端配置
+                    if (!serverConfig.capApiEndpoint && clientCapEndpoint) {
+                        this.config.capApiEndpoint = clientCapEndpoint;
+                    }
                 }
             } catch (error) {
                 console.warn('Failed to load chat config:', error);
