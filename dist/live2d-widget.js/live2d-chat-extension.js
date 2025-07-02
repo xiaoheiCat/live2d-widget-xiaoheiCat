@@ -1,5 +1,5 @@
 // live2d-chat-extension.js
-// Live2D Widget 聊天扩展
+// Live2D Widget 聊天扩展 - 使用 Cap 隐身模式
 
 (function() {
     'use strict';
@@ -15,12 +15,14 @@
                 theme: options.theme || 'cute', // 主题：default, dark, cute
                 showOnHover: options.showOnHover !== false, // 悬停显示
                 hoverArea: options.hoverArea || null, // 自定义悬停区域
+                requireCap: true, // 是否需要 Cap 验证
+                capApiEndpoint: 'https://cap.thatlink.top/f98a68634c/', // Cap Api EndPoint
                 messages: options.messages || {
                     placeholder: '输入消息...',
                     title: '与我聊天',
                     error: '哎呀，我暂时还不想回答这个问题，等一会儿再来问我吧。',
                     thinking: '思考中...',
-                    verifying: '正在验证您是否是机械霸王龙...' // 添加验证提示文本
+                    verifying: '正在验证您是否是机械霸王龙...' // Cap 验证提示文本
                 },
                 ...options
             };
@@ -28,10 +30,9 @@
             this.messages = [];
             this.isStreaming = false;
             this.chatVisible = false;
-            this.turnstileToken = null;
-            this.turnstileWidgetId = null;
-            this.inputFocused = false; // 添加输入框焦点状态
-            this.pendingMessage = null; // 添加待发送消息
+            this.inputFocused = false;
+            this.capInstance = null; // Cap 实例
+            this.isVerifying = false; // 是否正在验证
 
             // 初始化
             this.init();
@@ -41,6 +42,11 @@
         async init() {
             // 加载配置
             await this.loadConfig();
+            
+            // 初始化 Cap（如果需要）
+            if (this.config.requireCap && this.config.capApiEndpoint) {
+                await this.initializeCap();
+            }
             
             // 创建聊天界面
             this.createChatUI();
@@ -89,31 +95,36 @@
                 if (response.ok) {
                     const serverConfig = await response.json();
                     Object.assign(this.config, serverConfig);
-                    
-                    // 如果需要 Turnstile，加载脚本
-                    if (this.config.requireTurnstile && this.config.turnstileSiteKey) {
-                        await this.loadTurnstile();
-                    }
                 }
             } catch (error) {
                 console.warn('Failed to load chat config:', error);
             }
         }
 
-        // 加载 Turnstile 脚本
-        async loadTurnstile() {
-            return new Promise((resolve) => {
-                if (window.turnstile) {
-                    resolve();
-                    return;
-                }
+        // 初始化 Cap
+        async initializeCap() {
+            // 检查 Cap 是否已加载
+            if (typeof window.Cap === 'undefined') {
+                console.warn('Cap library not loaded. Make sure to include the Cap widget script.');
+                return;
+            }
 
-                const script = document.createElement('script');
-                script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
-                script.async = true;
-                script.onload = resolve;
-                document.head.appendChild(script);
-            });
+            try {
+                // 创建 Cap 实例（隐身模式）
+                this.capInstance = new window.Cap({
+                    apiEndpoint: this.config.capApiEndpoint,
+                    workers: navigator.hardwareConcurrency || 8
+                });
+
+                // 监听进度事件（可选）
+                this.capInstance.addEventListener('progress', (event) => {
+                    console.log(`Cap solving: ${event.detail.progress}%`);
+                });
+
+                console.log('Cap initialized successfully');
+            } catch (error) {
+                console.error('Failed to initialize Cap:', error);
+            }
         }
 
         // 创建聊天UI
@@ -127,8 +138,7 @@
                     </div>
                     <div class="l2d-chat-messages" id="l2d-chat-messages"></div>
                     <div class="l2d-chat-input-container">
-                        <div id="l2d-turnstile-container" class="l2d-turnstile-container"></div>
-                        <div class="l2d-chat-input-row" id="l2d-chat-input-row" style="display: none;">
+                        <div class="l2d-chat-input-row" id="l2d-chat-input-row">
                             <input type="text" 
                                    class="l2d-chat-input" 
                                    id="l2d-chat-input" 
@@ -140,6 +150,9 @@
                                     <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                                 </svg>
                             </button>
+                        </div>
+                        <div class="l2d-verification-hint" id="l2d-verification-hint" style="display: none;">
+                            <span class="l2d-verification-text">${this.config.messages.verifying}</span>
                         </div>
                     </div>
                 </div>
@@ -157,8 +170,8 @@
                 input: document.getElementById('l2d-chat-input'),
                 sendBtn: document.getElementById('l2d-chat-send'),
                 closeBtn: document.querySelector('.l2d-chat-close'),
-                turnstileContainer: document.getElementById('l2d-turnstile-container'),
-                inputRow: document.getElementById('l2d-chat-input-row')
+                inputRow: document.getElementById('l2d-chat-input-row'),
+                verificationHint: document.getElementById('l2d-verification-hint')
             };
         }
 
@@ -211,7 +224,7 @@
                 });
             }
 
-            // 关闭按钮 - 修复问题1：确保点击事件正确绑定
+            // 关闭按钮
             this.elements.closeBtn.addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -304,123 +317,6 @@
         show() {
             this.elements.container.classList.add('show');
             this.chatVisible = true;
-            
-            // 修复问题2：改进验证码显示逻辑
-            if (this.config.requireTurnstile && this.config.turnstileSiteKey) {
-                if (!this.turnstileToken) {
-                    // 需要验证码且没有 token，显示验证码
-                    this.showTurnstile();
-                } else {
-                    // 已经有 token，显示输入框
-                    this.elements.turnstileContainer.style.display = 'none';
-                    this.elements.inputRow.style.display = 'flex';
-                }
-            } else {
-                // 不需要验证码，直接显示输入框
-                this.elements.turnstileContainer.style.display = 'none';
-                this.elements.inputRow.style.display = 'flex';
-            }
-        }
-
-        // 显示 Turnstile 验证码
-        showTurnstile() {
-            this.elements.turnstileContainer.style.display = 'flex';
-            this.elements.inputRow.style.display = 'none';
-            
-            // 先清空容器
-            this.elements.turnstileContainer.innerHTML = '';
-            
-            // 添加加载提示文本（作为背景）
-            const loadingText = document.createElement('div');
-            loadingText.className = 'l2d-turnstile-loading';
-            loadingText.innerHTML = `
-                <div class="l2d-loading-spinner"></div>
-                <div class="l2d-loading-text">${this.config.messages.verifying}</div>
-            `;
-            this.elements.turnstileContainer.appendChild(loadingText);
-            
-            // 如果还没有初始化 widget，初始化它
-            if (this.turnstileWidgetId === null) {
-                // 延迟初始化，确保加载提示先显示
-                setTimeout(() => {
-                    this.initTurnstile();
-                }, 100);
-            } else if (window.turnstile) {
-                // 如果已经初始化过，先销毁旧的，再创建新的
-                try {
-                    window.turnstile.remove(this.turnstileWidgetId);
-                } catch (e) {
-                    console.warn('Failed to remove old turnstile widget:', e);
-                }
-                this.turnstileWidgetId = null;
-                // 重新初始化
-                setTimeout(() => {
-                    this.initTurnstile();
-                }, 100);
-            }
-        }
-
-        // 初始化 Turnstile
-        initTurnstile() {
-            if (!window.turnstile || !this.elements.turnstileContainer) {
-                console.error('Turnstile not loaded or container not found');
-                // 如果 Turnstile 加载失败，显示输入框作为降级方案
-                this.elements.turnstileContainer.style.display = 'none';
-                this.elements.inputRow.style.display = 'flex';
-                return;
-            }
-
-            // 创建一个新的容器用于 Turnstile widget
-            const widgetContainer = document.createElement('div');
-            widgetContainer.className = 'l2d-turnstile-widget';
-            this.elements.turnstileContainer.appendChild(widgetContainer);
-            
-            try {
-                this.turnstileWidgetId = window.turnstile.render(widgetContainer, {
-                    sitekey: this.config.turnstileSiteKey,
-                    callback: (token) => {
-                        console.log('Turnstile verification successful');
-                        this.turnstileToken = token;
-                        // 验证成功后隐藏验证码，显示输入框
-                        this.elements.turnstileContainer.style.display = 'none';
-                        this.elements.inputRow.style.display = 'flex';
-                        // 添加动画类
-                        this.elements.inputRow.classList.add('show-animation');
-                        // 确保输入框可见后再聚焦
-                        setTimeout(() => {
-                            // 如果有待发送的消息，恢复到输入框
-                            if (this.pendingMessage) {
-                                this.elements.input.value = this.pendingMessage;
-                                // 自动发送
-                                this.sendMessage();
-                            } else {
-                                this.elements.input.focus();
-                            }
-                            // 移除动画类
-                            this.elements.inputRow.classList.remove('show-animation');
-                        }, 350);
-                    },
-                    'expired-callback': () => {
-                        console.log('Turnstile token expired');
-                        this.turnstileToken = null;
-                        // 验证过期，重新显示验证码
-                        this.showTurnstile();
-                    },
-                    'error-callback': () => {
-                        console.error('Turnstile error');
-                        // 错误时也显示输入框，让用户可以继续使用
-                        this.elements.turnstileContainer.style.display = 'none';
-                        this.elements.inputRow.style.display = 'flex';
-                    },
-                    size: 'normal',
-                    theme: this.config.theme === 'dark' ? 'dark' : 'light'
-                });
-            } catch (error) {
-                console.error('Failed to render Turnstile:', error);
-                // 渲染失败，显示输入框作为降级方案
-                this.elements.turnstileContainer.style.display = 'none';
-                this.elements.inputRow.style.display = 'flex';
-            }
         }
 
         // 隐藏聊天框
@@ -433,14 +329,13 @@
             }
             
             // 如果正在输入或有焦点，不要隐藏
-            if (this.hasFocus() || this.isStreaming) {
-                console.log('Prevented hiding chat box due to focus or streaming');
+            if (this.hasFocus() || this.isStreaming || this.isVerifying) {
+                console.log('Prevented hiding chat box due to focus, streaming, or verification');
                 return;
             }
             
             this.elements.container.classList.remove('show');
             this.chatVisible = false;
-            // 不要在隐藏聊天框时重置输入框的显示状态
         }
 
         // 切换显示/隐藏
@@ -479,49 +374,81 @@
             return bubbleEl;
         }
 
+        // 显示验证提示
+        showVerificationHint() {
+            this.elements.verificationHint.style.display = 'block';
+            this.elements.verificationHint.classList.add('show');
+        }
+
+        // 隐藏验证提示
+        hideVerificationHint() {
+            this.elements.verificationHint.classList.remove('show');
+            setTimeout(() => {
+                this.elements.verificationHint.style.display = 'none';
+            }, 300);
+        }
+
+        // 获取 Cap token
+        async getCapToken() {
+            if (!this.config.requireCap || !this.capInstance) {
+                return null;
+            }
+
+            try {
+                this.isVerifying = true;
+                this.showVerificationHint();
+                
+                // 使用 Cap 的隐身模式解决挑战
+                const solution = await this.capInstance.solve();
+                
+                this.hideVerificationHint();
+                this.isVerifying = false;
+                
+                return solution.token;
+            } catch (error) {
+                console.error('Cap verification failed:', error);
+                this.hideVerificationHint();
+                this.isVerifying = false;
+                throw new Error('验证失败，请重试');
+            }
+        }
+
         // 发送消息
         async sendMessage() {
             const message = this.elements.input.value.trim();
             if (!message || this.isStreaming) return;
 
-            // 检查是否需要验证码
-            if (this.config.requireTurnstile && this.config.turnstileSiteKey && !this.turnstileToken) {
-                // 保存待发送的消息
-                this.pendingMessage = message;
-                // 显示验证码
-                this.showTurnstile();
-                return;
-            }
-
             // 添加用户消息
             this.addMessage('user', message);
             this.messages.push({ role: 'user', content: message });
             
-            // 清空输入框和待发送消息
+            // 清空输入框
             this.elements.input.value = '';
-            this.pendingMessage = null;
             
             // 禁用输入
             this.elements.input.disabled = true;
             this.elements.sendBtn.disabled = true;
             this.isStreaming = true;
 
-            // 如果需要验证码，立即显示验证码（为下一次消息准备）
-            if (this.config.requireTurnstile && this.config.turnstileSiteKey) {
-                // 隐藏输入框，显示验证码
-                this.elements.inputRow.style.display = 'none';
-                this.showTurnstile();
-            }
-
             // 添加 AI 回复占位符
             const aiMessageBubble = this.addMessage('assistant', '', true);
 
             try {
+                // 获取 Cap token（如果需要）
+                let capToken = null;
+                if (this.config.requireCap) {
+                    try {
+                        capToken = await this.getCapToken();
+                    } catch (error) {
+                        throw new Error(error.message || '验证失败');
+                    }
+                }
+
                 // 准备请求数据
                 const requestData = {
                     messages: this.messages.slice(-10), // 保留最近10条消息作为上下文
                     stream: true,
-                    turnstileToken: this.turnstileToken
+                    capToken: capToken
                 };
 
                 // 发送请求
@@ -554,27 +481,17 @@
                 // 处理流式响应
                 await this.handleStreamResponse(response, aiMessageBubble);
 
-                // 消息发送成功后，立即重置 token
-                // 这样下次发送消息时会要求重新验证
-                this.turnstileToken = null;
-
             } catch (error) {
                 console.error('Chat error:', error);
                 const errorMessage = error.message || this.config.messages.error;
                 aiMessageBubble.innerHTML = `<span style="color: #dc3545;">${errorMessage}</span>`;
-                
-                // 如果是验证失败，清空 token 并重新显示验证码
-                if (errorMessage.includes('验证失败') || errorMessage.includes('verification failed')) {
-                    this.turnstileToken = null;
-                    this.showTurnstile();
-                }
             } finally {
                 this.elements.input.disabled = false;
                 this.elements.sendBtn.disabled = false;
                 this.isStreaming = false;
                 
-                // 流式响应结束后，验证码应该已经准备好了
-                // 不需要在这里做额外操作，因为验证码已经在发送消息时显示了
+                // 聚焦输入框
+                this.elements.input.focus();
             }
         }
 
@@ -736,7 +653,7 @@
                     color: #fff;
                 }
 
-                .l2d-chat-container.dark .l2d-loading-text {
+                .l2d-chat-container.dark .l2d-verification-text {
                     color: #ccc;
                 }
 
@@ -753,12 +670,7 @@
                     background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
                 }
 
-                .l2d-chat-container.cute .l2d-loading-spinner {
-                    border-color: #ff9a9e;
-                    border-top-color: transparent;
-                }
-
-                .l2d-chat-container.cute .l2d-loading-text {
+                .l2d-chat-container.cute .l2d-verification-text {
                     color: #ff6b6b;
                 }
 
@@ -848,19 +760,6 @@
                     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
                 }
 
-                .l2d-chat-message.system {
-                    text-align: center;
-                    margin: 10px 0;
-                }
-
-                .l2d-chat-message.system .l2d-chat-bubble {
-                    background: #f0f0f0;
-                    color: #666;
-                    font-size: 13px;
-                    padding: 8px 12px;
-                    border-radius: 12px;
-                }
-
                 /* Input container */
                 .l2d-chat-input-container {
                     padding: 15px;
@@ -873,112 +772,41 @@
                     min-height: 70px; /* 固定最小高度，防止跳动 */
                 }
 
-                /* Turnstile container */
-                .l2d-turnstile-container {
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
-                    min-height: 50px;
-                    transition: all 0.3s ease;
-                    position: relative;
-                }
-
-                .l2d-turnstile-container:empty {
-                    display: none !important;
-                }
-
-                /* 加载提示样式 - 作为背景层 */
-                .l2d-turnstile-loading {
-                    position: absolute;
-                    top: 0;
-                    left: 0;
-                    right: 0;
-                    bottom: 0;
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    justify-content: center;
-                    gap: 12px;
-                    background: transparent;
-                    z-index: 0; /* 设为最底层 */
-                    pointer-events: none; /* 不阻挡鼠标事件 */
-                }
-
-                .l2d-loading-spinner {
-                    width: 24px;
-                    height: 24px;
-                    border: 3px solid #667eea;
-                    border-top-color: transparent;
-                    border-radius: 50%;
-                    animation: l2d-spin 0.8s linear infinite;
-                }
-
-                @keyframes l2d-spin {
-                    to { transform: rotate(360deg); }
-                }
-
-                .l2d-loading-text {
-                    font-size: 14px;
-                    color: #666;
-                    font-weight: 500;
-                    text-align: center;
-                    padding: 0 20px;
-                }
-
-                /* Turnstile widget 容器样式 */
-                .l2d-turnstile-container > div:not(.l2d-turnstile-loading) {
-                    transform: scale(0.85);
-                    transform-origin: center;
-                    position: relative;
-                    z-index: 10; /* 确保在加载提示之上 */
-                    background: white; /* 添加背景色以完全覆盖 */
+                /* Verification hint */
+                .l2d-verification-hint {
+                    display: none;
+                    padding: 8px 12px;
+                    background: rgba(102, 126, 234, 0.1);
                     border-radius: 8px;
+                    text-align: center;
+                    opacity: 0;
+                    transition: opacity 0.3s ease;
                 }
 
-                /* Turnstile widget 专用容器 */
-                .l2d-turnstile-widget {
-                    position: relative;
-                    z-index: 10;
-                    display: flex;
-                    justify-content: center;
-                    align-items: center;
+                .l2d-verification-hint.show {
+                    opacity: 1;
                 }
 
-                /* 确保 Turnstile iframe 在最上层 */
-                .l2d-turnstile-container iframe {
-                    position: relative;
-                    z-index: 10;
+                .l2d-verification-text {
+                    font-size: 13px;
+                    color: #667eea;
+                    font-weight: 500;
                 }
 
-                /* Dark theme 下的调整 */
+                /* Dark theme adjustment */
                 .l2d-chat-container.dark .l2d-chat-input-container {
                     background: #1a1a1a;
                     border-top-color: #444;
                 }
 
-                .l2d-chat-container.dark .l2d-turnstile-widget {
-                    background: transparent;
+                .l2d-chat-container.dark .l2d-verification-hint {
+                    background: rgba(255, 255, 255, 0.1);
                 }
 
                 /* Input row */
                 .l2d-chat-input-row {
                     display: flex;
                     gap: 10px;
-                }
-
-                .l2d-chat-input-row.show-animation {
-                    animation: l2d-fadein 0.3s ease;
-                }
-
-                @keyframes l2d-fadein {
-                    from {
-                        opacity: 0;
-                        transform: translateY(10px);
-                    }
-                    to {
-                        opacity: 1;
-                        transform: translateY(0);
-                    }
                 }
 
                 .l2d-chat-input {
@@ -1130,6 +958,9 @@
 
 /* 使用示例：
 
+// 首先，在 HTML 中引入 Cap widget 库：
+<script src="https://cdn.jsdelivr.net/npm/@cap.js/widget@latest"></script>
+
 // 方式1：自动初始化（默认配置）
 // 只需要引入脚本即可
 
@@ -1141,15 +972,14 @@ document.addEventListener('DOMContentLoaded', () => {
         position: 'right',
         theme: 'cute',
         showOnHover: true,
-        requireTurnstile: true,
-        turnstileSiteKey: 'YOUR_SITE_KEY',
-        requireTurnstileEveryMessage: false, // 是否每条消息都需要验证
+        requireCap: true, // 启用 Cap 验证
+        capApiEndpoint: 'https://cap.example.com/YOUR_SITE_KEY/', // Cap API 端点
         messages: {
             placeholder: '想和我聊什么呢？',
             title: 'Live2D 助手',
             error: '哎呀，出错了呢~',
             thinking: '让我想想...',
-            verifying: '正在验证您是否是机械霸王龙...'
+            verifying: '正在验证中...'
         }
     });
 });
@@ -1159,8 +989,8 @@ window.L2DChatConfig = {
     theme: 'dark',
     position: 'left',
     showOnHover: false,  // 禁用悬停，只通过点击触发
-    requireTurnstile: true,
-    turnstileSiteKey: 'YOUR_SITE_KEY',
+    requireCap: true,
+    capApiEndpoint: 'https://cap.example.com/YOUR_SITE_KEY/',
     messages: {
         verifying: '验证中，请稍候...'
     }
@@ -1170,7 +1000,9 @@ window.L2DChatConfig = {
 // 方式4：自定义悬停区域
 window.L2DChatConfig = {
     hoverArea: document.getElementById('my-custom-hover-area'),
-    showOnHover: true
+    showOnHover: true,
+    requireCap: true,
+    capApiEndpoint: 'https://cap.example.com/YOUR_SITE_KEY/'
 };
 
 */
