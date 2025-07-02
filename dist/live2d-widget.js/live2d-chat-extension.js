@@ -101,31 +101,43 @@
         // 初始化 Cap
         async initializeCap() {
             if (typeof window.Cap === 'undefined') {
-                console.warn('Cap library not loaded. Make sure to include the Cap widget script.');
+                console.warn('Cap 库未加载!');
                 return;
             }
         
             try {
-                // 直接使用配置的完整 URL，不需要额外处理
+                // 验证端点是否存在
+                if (!this.config.capApiEndpoint) {
+                    throw new Error('未配置 Cap API 端点!');
+                }
+        
+                // 确保端点以'/'结尾
+                let endpoint = this.config.capApiEndpoint;
+                if (!endpoint.endsWith('/')) {
+                    endpoint += '/';
+                }
+        
+                // 使用正确格式创建 Cap 实例
                 this.capInstance = new window.Cap({
-                    apiEndpoint: this.config.capApiEndpoint, // 例如: "https://cap.thatlink.top/f98a68634c/"
+                    apiEndpoint: endpoint,
                     workers: navigator.hardwareConcurrency || 8
                 });
         
-                // 监听进度事件
+                // 进度监听器
                 this.capInstance.addEventListener('progress', (event) => {
-                    console.log(`Cap solving: ${event.detail.progress}%`);
+                    console.log(`Cap 正在验证: ${event.detail.progress}%`);
                     
-                    // 更新验证提示文本显示进度
                     const verificationText = document.querySelector('.l2d-verification-text');
                     if (verificationText) {
                         verificationText.textContent = `${this.config.messages.verifying} ${event.detail.progress}%`;
                     }
                 });
         
-                console.log('Cap initialized successfully');
+                console.log('Cap 初始化成功');
             } catch (error) {
-                console.error('Failed to initialize Cap:', error);
+                console.error('Cap 初始化失败:', error);
+                // 可选：如果失败则禁用 Cap 功能
+                this.capInstance = null;
             }
         }
 
