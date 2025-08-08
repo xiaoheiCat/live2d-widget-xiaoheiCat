@@ -1,0 +1,23 @@
+{
+	"Version": 3,
+	"FileReferences": {
+		"Moc": "pixelmascotLive2D.moc3",
+		"Textures": [
+			"pixelmascotLive2D.8192/texture_00.png"
+		],
+		"Physics": "pixelmascotLive2D.physics3.json",
+		"DisplayInfo": "pixelmascotLive2D.cdi3.json"
+	},
+	"Groups": [
+		{
+			"Target": "Parameter",
+			"Name": "EyeBlink",
+			"Ids": []
+		},
+		{
+			"Target": "Parameter",
+			"Name": "LipSync",
+			"Ids": []
+		}
+	]
+}
